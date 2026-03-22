@@ -65,7 +65,11 @@ src/main/resources/static/
 
 ## Deployment
 
-- The website is hosted on **Vercel** (https://vercel.com), making it easy to access from anywhere.
+- The website is hosted on **Render** (https://render.com), which supports full-stack Java deployments and serves both backend and frontend from one place.
+
+## Why Docker?
+
+Docker is used to ensure the application runs the same way everywhere, regardless of the underlying server. It packages the Java runtime, Maven, and all dependencies so Render can build and run the app even though it doesn't natively support Java. This makes deployment reliable and portable.
 
 ## Why this approach?
 
