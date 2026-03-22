@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess Tournament Pairing System - Dashboard</title>
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app-container">
+  <nav class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-brand">
+      <a href="index.html" class="brand-logo-link" aria-label="Go to Dashboard">
+        <img class="brand-logo" src="/ChecknMate-logo.png" alt="C&amp;M">
+      </a>
+      <a href="index.html" class="brand-text brand-text-link" aria-label="Go to Dashboard">
+        <h1>Check<span style="color: rgb(3, 98, 3);">&amp;</span>Mate</h1>
+        <small>Organize Chess Effortlessly</small>
+      </a>
+    </div>
+    <div class="nav-section">Main</div>
+    <a class="nav-item active" href="index.html"><span class="nav-icon">🏠</span> Dashboard</a>
+    <a class="nav-item" href="players.html"><span class="nav-icon">📥</span> Import Players</a>
+    <div class="nav-section">Tournament</div>
+    <a class="nav-item" href="pairings.html"><span class="nav-icon">🔀</span> Pairings</a>
+    <a class="nav-item" href="results.html"><span class="nav-icon">📝</span> Results Entry</a>
+    <a class="nav-item" href="standings.html"><span class="nav-icon">🏆</span> Standings</a>
+    <a class="nav-item" href="history.html"><span class="nav-icon">📋</span> History and Export</a>
+    <div class="sidebar-footer"><p>&copy; 2026 Check&amp;Mate. All rights reserved.</p></div>
+  </nav>
+
+  <main class="main-content" role="main">
+    <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle menu">=</button>
+
+    <div class="page-header">
+      <div>
+        <h2>Dashboard</h2>
+        <p>Manage your tournaments</p>
+      </div>
+      <button class="btn btn-primary" onclick="openCreateTournament()">+ New Tournament</button>
+    </div>
+
+    <div class="page-body">
+      <div class="grid grid-4" id="dashStats"></div>
+      <div style="margin-top:24px;">
+        <div class="card">
+          <div class="card-header">
+            <h3>Active Tournaments</h3>
+          </div>
+          <div class="card-body" id="dashTournamentList"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="createTournamentModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Create New Tournament</h3>
+      <button class="modal-close" onclick="closeModal('createTournamentModal')" aria-label="Close">x</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Tournament Name</label>
+        <input type="text" class="form-control" id="tName" placeholder="e.g. Spring Open 2026">
+      </div>
+      <div class="grid grid-2">
+        <div class="form-group">
+          <label class="form-label">Format</label>
+          <select class="form-control" id="tFormat">
+            <option value="Swiss System">Swiss System</option>
+            <option value="Round Robin">Round Robin</option>
+            <option value="Knockout">Knockout</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rounds</label>
+          <input type="number" class="form-control" id="tRounds" value="5" min="1" max="15">
+        </div>
+      </div>
+      <div class="grid grid-2">
+        <div class="form-group">
+          <label class="form-label">Date</label>
+          <input type="date" class="form-control" id="tDate">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Location</label>
+          <input type="text" class="form-control" id="tLocation" placeholder="e.g. City Chess Club">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('createTournamentModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="createTournament()">Create Tournament</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+<script src="js/app.js"></script>
+<script>
+let tournamentsCache = [];
+
+function openCreateTournament() {
+  openModal('createTournamentModal');
+  var input = document.getElementById('tName');
+  if (input) input.focus();
+}
+
+function loadTournaments() {
+  apiRequest('/api/tournaments/all')
+    .then(function(data) {
+      tournamentsCache = Array.isArray(data) ? data : [];
+      renderDashboard(tournamentsCache);
+    })
+    .catch(function(error) {
+      showToast(error.message || 'Failed to load tournaments', 'error');
+    });
+}
+
+function createTournament() {
+  var name = document.getElementById('tName').value.trim();
+  var format = document.getElementById('tFormat').value;
+  var rounds = parseInt(document.getElementById('tRounds').value, 10);
+  var tournamentDate = document.getElementById('tDate').value;
+  var location = document.getElementById('tLocation').value.trim();
+
+  if (!name) {
+    showToast('Tournament name is required', 'error');
+    return;
+  }
+
+  if (isNaN(rounds) || rounds < 1 || rounds > 15) {
+    showToast('Rounds must be between 1 and 15', 'error');
+    return;
+  }
+
+  var payload = {
+    name: name,
+    format: format,
+    totalRounds: rounds,
+    tournamentDate: tournamentDate,
+    location: location
+  };
+  apiRequest('/api/tournaments/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(function(resp) {
+    if (resp.error) {
+      showToast(resp.error, 'error');
+      return;
+    }
+
+    showToast('Tournament created successfully', 'success');
+    closeModal('createTournamentModal');
+    document.getElementById('tName').value = '';
+    document.getElementById('tRounds').value = '5';
+    document.getElementById('tDate').value = '';
+    document.getElementById('tLocation').value = '';
+    loadTournaments();
+  }).catch(function(error) {
+    showToast(error.message || 'Failed to create tournament', 'error');
+  });
+}
+
+function deleteTournament(tournamentId) {
+  if (!confirm('Delete this tournament and all its players/matches?')) {
+    return;
+  }
+
+  apiRequest('/api/tournaments/delete?tournamentId=' + encodeURIComponent(tournamentId), {
+    method: 'DELETE'
+  }).then(function(resp) {
+    if (resp.error) {
+      showToast(resp.error, 'error');
+      return;
+    }
+
+    showToast(resp.message || 'Tournament deleted', 'success');
+    loadTournaments();
+  }).catch(function(error) {
+    showToast(error.message || 'Failed to delete tournament', 'error');
+  });
+}
+
+function renderDashboard(tournaments) {
+  var statsEl = document.getElementById('dashStats');
+  var total = tournaments.length;
+  var completed = 0;
+  var active = 0;
+  var totalRounds = 0;
+
+  for (var i = 0; i < tournaments.length; i++) {
+    var t = tournaments[i];
+    var status = (t.status || '').toLowerCase();
+    if (status === 'completed') completed++;
+    if (status === 'setup' || status === 'active') active++;
+    totalRounds += (t.totalRounds || 0);
+  }
+
+  statsEl.innerHTML = '' +
+    '<div class="stat-card"><div class="stat-icon green">♟️</div><div class="stat-info"><h4>' + total + '</h4><p>Tournaments</p></div></div>' +
+    '<div class="stat-card"><div class="stat-icon blue">🟢</div><div class="stat-info"><h4>' + active + '</h4><p>Active</p></div></div>' +
+    '<div class="stat-card"><div class="stat-icon gold">✅</div><div class="stat-info"><h4>' + completed + '</h4><p>Completed</p></div></div>' +
+    '<div class="stat-card"><div class="stat-icon brown">⚙️</div><div class="stat-info"><h4>' + totalRounds + '</h4><p>Configured Rounds</p></div></div>';
+
+  var listEl = document.getElementById('dashTournamentList');
+  if (tournaments.length === 0) {
+    listEl.innerHTML = '<div class="empty-state"><div class="empty-icon">T</div><h4>No tournaments yet</h4><p>Create your first tournament to get started.</p><button class="btn btn-primary" onclick="openCreateTournament()">Create Tournament</button></div>';
+    return;
+  }
+
+  var html = '<div class="table-wrapper"><table><thead><tr><th>ID</th><th>Name</th><th>Format</th><th>Date</th><th>Location</th><th>Rounds</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+  for (var j = 0; j < tournaments.length; j++) {
+    var item = tournaments[j];
+    html += '<tr class="tournament-row" style="cursor:pointer;" onclick="handleTournamentClick(' + item.id + ')">' +
+      '<td>' + item.id + '</td>' +
+      '<td><strong>' + escapeHtml(item.name) + '</strong></td>' +
+      '<td>' + escapeHtml(item.format) + '</td>' +
+      '<td>' + escapeHtml(item.tournamentDate || '-') + '</td>' +
+      '<td>' + escapeHtml(item.location || '-') + '</td>' +
+      '<td>' + item.totalRounds + '</td>' +
+      '<td>' + escapeHtml(item.status || 'Setup') + '</td>' +
+      '<td><button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();deleteTournament(' + item.id + ')">Delete</button></td>' +
+      '</tr>';
+  }
+// Handle tournament row click: check if players exist, redirect accordingly
+function handleTournamentClick(tournamentId) {
+  // Save selected tournament for pre-selection
+  localStorage.setItem('selectedTournamentId', tournamentId);
+  // Check if players exist for this tournament
+  apiRequest('/api/players/by-tournament?tournamentId=' + encodeURIComponent(tournamentId))
+    .then(function(players) {
+      if (Array.isArray(players) && players.length > 0) {
+        // Players exist, go to standings
+        window.location.href = 'standings.html';
+      } else {
+        // No players, go to import players
+        window.location.href = 'players.html';
+      }
+    })
+    .catch(function() {
+      // On error, default to import players
+      window.location.href = 'players.html';
+    });
+}
+
+  html += '</tbody></table></div>';
+  listEl.innerHTML = html;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  loadTournaments();
+});
+</script>
+</body>
+</html>

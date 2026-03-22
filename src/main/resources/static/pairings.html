@@ -1,0 +1,236 @@
+<script>
+  // Only redirect to landing page on true browser refresh, not sidebar navigation
+  (function() {
+    var isReload = false;
+    if (window.performance) {
+      var navEntries = window.performance.getEntriesByType && window.performance.getEntriesByType('navigation');
+      if (navEntries && navEntries.length > 0) {
+        isReload = navEntries[0].type === 'reload';
+      } else if (window.performance.navigation) {
+        isReload = window.performance.navigation.type === 1;
+      }
+    }
+    // Fallback: use sessionStorage to detect reload
+    if (!isReload) {
+      if (sessionStorage.getItem('justReloaded')) {
+        isReload = true;
+        sessionStorage.removeItem('justReloaded');
+      }
+    }
+    // Only set flag if user is refreshing (not navigating via link)
+    window.addEventListener('beforeunload', function(e) {
+      // If referrer is empty or same as current page, treat as reload
+      if (!document.referrer || document.referrer === window.location.href) {
+        sessionStorage.setItem('justReloaded', '1');
+      } else {
+        sessionStorage.removeItem('justReloaded');
+      }
+    });
+    if (isReload) {
+      window.location.replace('index.html');
+    }
+  })();
+</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess Tournament Pairing System - Pairings</title>
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app-container">
+  <nav class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-brand">
+      <a href="index.html" class="brand-logo-link" aria-label="Go to Dashboard">
+        <img class="brand-logo" src="/ChecknMate-logo.png" alt="Check&Mate Logo">
+      </a>
+      <a href="index.html" class="brand-text brand-text-link" aria-label="Go to Dashboard">
+        <h1>Check<span style="color: rgb(3, 98, 3);">&amp;</span>Mate</h1>
+        <small>Organize Chess Effortlessly</small>
+      </a>
+    </div>
+    <div class="nav-section">Main</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Dashboard</a>
+    <a class="nav-item" href="players.html"><span class="nav-icon">📥</span> Import Players</a>
+    <div class="nav-section">Tournament</div>
+    <a class="nav-item active" href="pairings.html"><span class="nav-icon">🔀</span> Pairings</a>
+    <a class="nav-item" href="results.html"><span class="nav-icon">📝</span> Results Entry</a>
+    <a class="nav-item" href="standings.html"><span class="nav-icon">🏆</span> Standings</a>
+    <a class="nav-item" href="history.html"><span class="nav-icon">📋</span> History and Export</a>
+    <div class="sidebar-footer"><p>&copy; 2026 Check&amp;Mate. All rights reserved.</p></div>
+  </nav>
+
+  <main class="main-content" role="main">
+    <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle menu">=</button>
+    <div class="page-header"><div><h2>Pairings</h2><p>Generate and view round pairings</p></div></div>
+    <div class="page-body">
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-body">
+          <div class="grid grid-3">
+            <div class="form-group">
+              <label class="form-label">Tournament</label>
+              <select class="form-control" id="pairingTournamentSelect" onchange="onTournamentChange()"><option value="">-- Choose --</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Round</label>
+              <input class="form-control" type="number" min="1" id="pairingRoundSelect" value="1">
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;">
+              <button class="btn btn-primary btn-block" onclick="generatePairings()">Generate Pairings</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="pairingsDisplay">
+        <div class="empty-state"><div class="empty-icon">P</div><h4>No pairings yet</h4><p>Select a tournament and generate pairings.</p></div>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast-container" id="toastContainer" aria-live="polite"></div>
+<script src="js/app.js"></script>
+<script>
+// Ensure apiRequest is available before using
+window.populateTournamentSelect = function() {
+  if (typeof apiRequest !== 'function') {
+    console.error('apiRequest is not defined. Check js/app.js loading.');
+    return;
+  }
+  apiRequest('/api/tournaments/all').then(function(list) {
+    var sel = document.getElementById('pairingTournamentSelect');
+    sel.innerHTML = '<option value="">-- Choose --</option>';
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      var opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.id + ' - ' + t.name + ' (' + t.format + ')';
+      opt.setAttribute('data-total-rounds', t.totalRounds || 1);
+      sel.appendChild(opt);
+    }
+  }).catch(function(error) {
+    showToast(error.message || 'Failed to load tournaments', 'error');
+  });
+};
+document.addEventListener('DOMContentLoaded', function() {
+  populateTournamentSelect();
+});
+
+function onTournamentChange() {
+  var sel = document.getElementById('pairingTournamentSelect');
+  var selected = sel.options[sel.selectedIndex];
+  if (!selected || !selected.value) return;
+  var maxRound = parseInt(selected.getAttribute('data-total-rounds') || '1', 10);
+  var roundInput = document.getElementById('pairingRoundSelect');
+  roundInput.max = String(maxRound);
+  if (parseInt(roundInput.value, 10) > maxRound) {
+    roundInput.value = String(maxRound);
+  }
+}
+
+function generatePairings() {
+  var tournamentId = document.getElementById('pairingTournamentSelect').value;
+  var roundNum = parseInt(document.getElementById('pairingRoundSelect').value, 10);
+
+  if (!tournamentId || isNaN(roundNum) || roundNum < 1) {
+    showToast('Please select a tournament and valid round.', 'warning');
+    return;
+  }
+
+  apiRequest('/api/pairings/generate?tournamentId=' + encodeURIComponent(tournamentId) + '&roundNum=' + encodeURIComponent(roundNum), {
+    method: 'POST'
+  }).then(function(resp) {
+    if (resp.error) {
+      showToast(resp.error, 'error');
+    } else {
+      showToast(resp.message || 'Pairings generated', 'success');
+    }
+    loadRoundPairings(tournamentId, roundNum);
+  }).catch(function(error) {
+    showToast(error.message || 'Failed to generate pairings', 'error');
+  });
+}
+
+function loadRoundPairings(tournamentId, roundNum) {
+  apiRequest('/api/results/round?tournamentId=' + encodeURIComponent(tournamentId) + '&roundNum=' + encodeURIComponent(roundNum))
+    .then(function(matches) {
+      renderPairings(roundNum, matches || []);
+    })
+    .catch(function(error) {
+      showToast(error.message || 'Could not load pairings', 'error');
+    });
+}
+
+function renderPairings(roundNum, matches) {
+  var container = document.getElementById('pairingsDisplay');
+  if (!matches || matches.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">P</div><h4>No pairings for round ' + roundNum + '</h4><p>Generate this round first.</p></div>';
+    return;
+  }
+
+  var html = '<div class="card"><div class="card-header"><h3>Round ' + roundNum + ' Pairings</h3></div><div class="card-body">';
+  for (var i = 0; i < matches.length; i++) {
+    var m = matches[i];
+    var resultValue = m.isBye ? '<span class="badge badge-yellow">BYE</span>' : '<span class="badge badge-gray">' + escapeHtml(m.result || 'Pending') + '</span>';
+    html += '<div class="pairing-card ' + (m.isBye ? 'bye-card' : '') + '">' +
+      '<div class="pairing-board">Bd ' + m.boardNum + '</div>' +
+      '<div class="pairing-players">' +
+      '<div class="pairing-player">' + escapeHtml(m.whiteName) + ' <span class="player-rating">(' + m.whiteRating + ')</span></div>' +
+      '<div class="pairing-vs">' + resultValue + '</div>' +
+      '<div class="pairing-player">' + (m.isBye ? 'BYE' : (escapeHtml(m.blackName) + ' <span class="player-rating">(' + m.blackRating + ')</span>')) + '</div>' +
+      '</div></div>';
+  }
+  html += '</div>';
+  // Add Enter Results button aligned with player rows
+  html += '<div class="enter-results-btn-row">';
+  html += '<button class="btn btn-success" id="enterResultsBtn" onclick="redirectToResults()">Enter Results</button>';
+  html += '</div>';
+  html += '</div>';
+  container.innerHTML = html;
+}
+
+// Redirect to results page with tournament and round pre-selected
+function redirectToResults() {
+  var tid = document.getElementById('pairingTournamentSelect').value;
+  var round = document.getElementById('pairingRoundSelect').value;
+  if (tid) {
+    localStorage.setItem('selectedTournamentId', tid);
+  }
+  if (round) {
+    localStorage.setItem('selectedRoundNum', round);
+  }
+  window.location.href = 'results.html';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  populateTournamentSelect();
+  // Always allow manual selection; only auto-select if redirected
+  var storedTid = localStorage.getItem('selectedTournamentId');
+  if (storedTid) {
+    var trySelect = function() {
+      var sel = document.getElementById('pairingTournamentSelect');
+      if (!sel || sel.options.length <= 1) {
+        setTimeout(trySelect, 50);
+        return;
+      }
+      var found = false;
+      for (var i = 0; i < sel.options.length; i++) {
+        if (String(sel.options[i].value) === String(storedTid)) {
+          sel.selectedIndex = i;
+          sel.dispatchEvent(new Event('change'));
+          found = true;
+          break;
+        }
+      }
+      // If not found, leave selection manual
+      // Optionally clear after use
+      // localStorage.removeItem('selectedTournamentId');
+    };
+    trySelect();
+  }
+});
+</script>
+</body>
+</html>

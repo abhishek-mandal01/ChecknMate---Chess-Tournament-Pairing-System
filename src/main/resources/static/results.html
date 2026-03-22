@@ -1,0 +1,273 @@
+<script>
+  // Only redirect to landing page on true browser refresh, not sidebar navigation
+  (function() {
+    var isReload = false;
+    if (window.performance) {
+      var navEntries = window.performance.getEntriesByType && window.performance.getEntriesByType('navigation');
+      if (navEntries && navEntries.length > 0) {
+        isReload = navEntries[0].type === 'reload';
+      } else if (window.performance.navigation) {
+        isReload = window.performance.navigation.type === 1;
+      }
+    }
+    // Fallback: use sessionStorage to detect reload
+    if (!isReload) {
+      if (sessionStorage.getItem('justReloaded')) {
+        isReload = true;
+        sessionStorage.removeItem('justReloaded');
+      }
+    }
+    // Only set flag if user is refreshing (not navigating via link)
+    window.addEventListener('beforeunload', function(e) {
+      // If referrer is empty or same as current page, treat as reload
+      if (!document.referrer || document.referrer === window.location.href) {
+        sessionStorage.setItem('justReloaded', '1');
+      } else {
+        sessionStorage.removeItem('justReloaded');
+      }
+    });
+    if (isReload) {
+      window.location.replace('index.html');
+    }
+  })();
+</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess Tournament Pairing System - Results Entry</title>
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app-container">
+  <nav class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-brand">
+      <a href="index.html" class="brand-logo-link" aria-label="Go to Dashboard">
+        <img class="brand-logo" src="/ChecknMate-logo.png" alt="Check&Mate Logo">
+      </a>
+      <a href="index.html" class="brand-text brand-text-link" aria-label="Go to Dashboard">
+        <h1>Check<span style="color: rgb(3, 98, 3);">&amp;</span>Mate</h1>
+        <small>Organize Chess Effortlessly</small>
+      </a>
+    </div>
+    <div class="nav-section">Main</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Dashboard</a>
+    <a class="nav-item" href="players.html"><span class="nav-icon">📥</span> Import Players</a>
+    <div class="nav-section">Tournament</div>
+    <a class="nav-item" href="pairings.html"><span class="nav-icon">🔀</span> Pairings</a>
+    <a class="nav-item active" href="results.html"><span class="nav-icon">📝</span> Results Entry</a>
+    <a class="nav-item" href="standings.html"><span class="nav-icon">🏆</span> Standings</a>
+    <a class="nav-item" href="history.html"><span class="nav-icon">📋</span> History and Export</a>
+    <div class="sidebar-footer"><p>&copy; 2026 Check&amp;Mate. All rights reserved.</p></div>
+  </nav>
+
+  <main class="main-content" role="main">
+    <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle menu">=</button>
+    <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <h2>Results Entry</h2>
+        <p>Enter match results for each round</p>
+      </div>
+      <button class="btn btn-primary" id="seeStandingsBtn" style="margin-left:auto;min-width:140px;" onclick="redirectToStandings()">See Standings</button>
+    </div>
+    <div class="page-body">
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-body">
+          <div class="grid grid-3">
+            <div class="form-group">
+              <label class="form-label">Tournament</label>
+              <select class="form-control" id="resultTournamentSelect"><option value="">-- Choose --</option></select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Round</label>
+              <input class="form-control" type="number" min="1" id="resultRoundSelect" value="1">
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;">
+              <button class="btn btn-primary btn-block" onclick="loadResultsForRound()">Load Matches</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="resultsDisplay"><div class="empty-state"><div class="empty-icon">R</div><h4>Select tournament and round</h4><p>Load matches to enter results.</p></div></div>
+      <!-- See Standings button moved to header -->
+    <script>
+    // Redirect to standings page with current tournament pre-selected
+    function redirectToStandings() {
+      var tid = document.getElementById('resultTournamentSelect').value;
+      if (tid) {
+        localStorage.setItem('selectedTournamentId', tid);
+      }
+      window.location.href = 'standings.html';
+    }
+    </script>
+    </div>
+  </main>
+</div>
+<div class="toast-container" id="toastContainer" aria-live="polite"></div>
+<script src="js/app.js"></script>
+<script>
+var currentMatches = [];
+
+function populateResultSelect() {
+  apiRequest('/api/tournaments/all').then(function(list) {
+    var sel = document.getElementById('resultTournamentSelect');
+    sel.innerHTML = '<option value="">-- Choose --</option>';
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      var opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.id + ' - ' + t.name + ' (' + t.format + ')';
+      sel.appendChild(opt);
+    }
+  }).catch(function(error) {
+    showToast(error.message || 'Failed to load tournaments', 'error');
+  });
+}
+
+function loadResultsForRound() {
+  var tournamentId = document.getElementById('resultTournamentSelect').value;
+  var roundNum = parseInt(document.getElementById('resultRoundSelect').value, 10);
+  if (!tournamentId || isNaN(roundNum)) {
+    showToast('Tournament and round are required', 'warning');
+    return;
+  }
+
+  apiRequest('/api/results/round?tournamentId=' + encodeURIComponent(tournamentId) + '&roundNum=' + encodeURIComponent(roundNum))
+    .then(function(matches) {
+      currentMatches = matches || [];
+      renderResultTable(roundNum, currentMatches);
+    })
+    .catch(function(error) {
+      showToast(error.message || 'Failed to load matches', 'error');
+    });
+}
+
+function renderResultTable(roundNum, matches) {
+  var container = document.getElementById('resultsDisplay');
+  if (!matches || matches.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">R</div><h4>No matches for round ' + roundNum + '</h4><p>Generate pairings first.</p></div>';
+    return;
+  }
+
+  var html = '<div class="card"><div class="card-header"><h3>Round ' + roundNum + '</h3></div><div class="card-body">';
+  html += '<div class="table-wrapper"><table><thead><tr><th>Board</th><th>White</th><th>Result</th><th>Black</th></tr></thead><tbody>';
+
+  for (var i = 0; i < matches.length; i++) {
+    var m = matches[i];
+    html += '<tr>' +
+      '<td><strong>' + m.boardNum + '</strong></td>' +
+      '<td>' + escapeHtml(m.whiteName) + ' (' + m.whiteRating + ')</td>' +
+      '<td style="text-align:center;">';
+
+    if (m.isBye) {
+      html += '<span class="badge badge-yellow">BYE</span>';
+    } else {
+      html += '<div class="result-btn-group" id="group-' + m.matchId + '">' +
+        '<button class="result-btn ' + (m.result === '1-0' ? 'selected' : '') + '" onclick="selectResult(' + m.matchId + ',\'1-0\', this)">1-0</button>' +
+        '<button class="result-btn ' + (m.result === '0.5-0.5' ? 'selected' : '') + '" onclick="selectResult(' + m.matchId + ',\'0.5-0.5\', this)">0.5-0.5</button>' +
+        '<button class="result-btn ' + (m.result === '0-1' ? 'selected' : '') + '" onclick="selectResult(' + m.matchId + ',\'0-1\', this)">0-1</button>' +
+        '</div>';
+    }
+
+    html += '</td><td>' + (m.isBye ? 'BYE' : (escapeHtml(m.blackName) + ' (' + m.blackRating + ')')) + '</td></tr>';
+  }
+
+  html += '</tbody></table></div>';
+  html += '<div style="display:flex;justify-content:flex-end;margin-top:20px;">';
+  html += '<button class="btn btn-success" onclick="submitResults()">Submit and Lock</button>';
+  html += '</div></div></div>';
+  container.innerHTML = html;
+}
+
+function selectResult(matchId, value, button) {
+  var group = document.getElementById('group-' + matchId);
+  if (!group) return;
+  var buttons = group.querySelectorAll('button');
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].classList.remove('selected');
+  }
+  button.classList.add('selected');
+
+  for (var j = 0; j < currentMatches.length; j++) {
+    if (currentMatches[j].matchId === matchId) {
+      currentMatches[j].result = value;
+      break;
+    }
+  }
+}
+
+function submitResults() {
+  if (!currentMatches || currentMatches.length === 0) {
+    showToast('No matches loaded.', 'warning');
+    return;
+  }
+
+  var payload = [];
+  for (var i = 0; i < currentMatches.length; i++) {
+    var m = currentMatches[i];
+    if (m.isBye) {
+      payload.push({ matchId: m.matchId, result: 'BYE' });
+      continue;
+    }
+
+    if (!m.result || m.result === 'Pending') {
+      showToast('Please set result for board ' + m.boardNum, 'error');
+      return;
+    }
+
+    payload.push({ matchId: m.matchId, result: m.result });
+  }
+
+  apiRequest('/api/results/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(function(resp) {
+    if (resp.error) {
+      showToast(resp.error, 'error');
+      return;
+    }
+
+    showToast(resp.message || 'Results saved', 'success');
+  }).catch(function(error) {
+    showToast(error.message || 'Failed to submit results', 'error');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  populateResultSelect();
+  // Auto-select tournament and round if redirected from pairings page
+  var storedTid = localStorage.getItem('selectedTournamentId');
+  var storedRound = localStorage.getItem('selectedRoundNum');
+  if (storedTid) {
+    var trySelect = function() {
+      var sel = document.getElementById('resultTournamentSelect');
+      if (!sel || sel.options.length <= 1) {
+        setTimeout(trySelect, 50);
+        return;
+      }
+      for (var i = 0; i < sel.options.length; i++) {
+        if (String(sel.options[i].value) === String(storedTid)) {
+          sel.selectedIndex = i;
+          sel.dispatchEvent(new Event('change'));
+          break;
+        }
+      }
+      if (storedRound) {
+        var roundInput = document.getElementById('resultRoundSelect');
+        if (roundInput) {
+          roundInput.value = storedRound;
+        }
+      }
+      // Optionally clear after use
+      // localStorage.removeItem('selectedTournamentId');
+      // localStorage.removeItem('selectedRoundNum');
+    };
+    trySelect();
+  }
+});
+</script>
+</body>
+</html>

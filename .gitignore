@@ -1,0 +1,25 @@
+# Ignore build output
+target/
+
+# Ignore Maven wrapper JAR 
+.mvn/wrapper/maven-wrapper.jar
+
+# Ignore local environment files
+.env
+.env.*
+
+# Ignore VS Code settings
+.vscode/
+
+# Ignore logs
+*.log
+logs/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# OS Files ###
+.DS_Store
+Thumbs.db

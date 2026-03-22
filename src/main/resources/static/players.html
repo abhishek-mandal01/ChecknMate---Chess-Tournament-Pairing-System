@@ -1,0 +1,450 @@
+<script>
+  // Only redirect to landing page on true browser refresh, not sidebar navigation
+  (function() {
+    var isReload = false;
+    if (window.performance) {
+      var navEntries = window.performance.getEntriesByType && window.performance.getEntriesByType('navigation');
+      if (navEntries && navEntries.length > 0) {
+        isReload = navEntries[0].type === 'reload';
+      } else if (window.performance.navigation) {
+        isReload = window.performance.navigation.type === 1;
+      }
+    }
+    // Fallback: use sessionStorage to detect reload
+    if (!isReload) {
+      if (sessionStorage.getItem('justReloaded')) {
+        isReload = true;
+        sessionStorage.removeItem('justReloaded');
+      }
+    }
+    // Only set flag if user is refreshing (not navigating via link)
+    window.addEventListener('beforeunload', function(e) {
+      // If referrer is empty or same as current page, treat as reload
+      if (!document.referrer || document.referrer === window.location.href) {
+        sessionStorage.setItem('justReloaded', '1');
+      } else {
+        sessionStorage.removeItem('justReloaded');
+      }
+    });
+    if (isReload) {
+      window.location.replace('index.html');
+    }
+  })();
+</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess Tournament Pairing System - Import Players</title>
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app-container">
+  <nav class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-brand">
+      <a href="index.html" class="brand-logo-link" aria-label="Go to Dashboard">
+        <img class="brand-logo" src="/ChecknMate-logo.png" alt="Check&Mate Logo">
+      </a>
+      <a href="index.html" class="brand-text brand-text-link" aria-label="Go to Dashboard">
+        <h1>Check<span style="color: rgb(3, 98, 3);">&amp;</span>Mate</h1>
+        <small>Organize Chess Effortlessly</small>
+      </a>
+    </div>
+    <div class="nav-section">Main</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Dashboard</a>
+    <a class="nav-item active" href="players.html"><span class="nav-icon">📥</span> Import Players</a>
+    <div class="nav-section">Tournament</div>
+    <a class="nav-item" href="pairings.html"><span class="nav-icon">🔀</span> Pairings</a>
+    <a class="nav-item" href="results.html"><span class="nav-icon">📝</span> Results Entry</a>
+    <a class="nav-item" href="standings.html"><span class="nav-icon">🏆</span> Standings</a>
+    <a class="nav-item" href="history.html"><span class="nav-icon">📋</span> History and Export</a>
+    <div class="sidebar-footer"><p>&copy; 2026 Check&amp;Mate. All rights reserved.</p></div>
+  </nav>
+
+  <main class="main-content" role="main">
+    <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle menu">=</button>
+    <div class="page-header"><div><h2>Import Players</h2><p>Import from CSV or manually add players. View and manage imported players below.</p></div></div>
+    <div class="page-body">
+      <div class="card">
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Tournament</label>
+            <select class="form-control" id="importTournamentSelect"><option value="">-- Choose Tournament --</option></select>
+          </div>
+        </div>
+      </div>
+      <!-- Only one CSV import and one manual entry container below -->
+      <!-- Manual Entry Card restored below -->
+      <div class="card" style="margin-top:10px;">
+        <div class="card-body">
+          <div class="form-group">
+            <label class="form-label">Manual Entry (Name, Rating)</label>
+            <textarea class="form-control" id="playerData" rows="4" placeholder="Magnus Carlsen, 2882&#10;Hikaru Nakamura, 2789"></textarea>
+          </div>
+          <button class="btn btn-success" id="importTextBtn" onclick="processPlayers()">Import from Text</button>
+        </div>
+      </div>
+        <div class="card" style="margin-top:10px;">
+          <div class="card-body">
+            <div class="form-group">
+              <label class="form-label">Import from CSV</label>
+              <input type="file" id="csvInput" accept=".csv" style="margin-bottom:10px;">
+              <div id="csvPreview" style="margin-top:10px;"></div>
+              <button class="btn btn-primary" id="importCsvBtn" style="display:none; margin-top:10px;">Import from CSV</button>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:10px;">
+          <div class="card-body">
+            <div class="form-group">
+          <!-- Removed static import-locked message; handled by toast popup instead. -->
+        <div class="card-body">
+          <h4 style="margin-bottom:5px;">Imported Players</h4>
+          <div id="importedPlayersList"></div>
+                  <div id="generatePairingsBtnDiv" style="margin-top:16px; text-align:right; display:none;">
+                    <button class="btn btn-primary" id="generatePairingsBtn" onclick="redirectToPairings()">Generate Pairings</button>
+                  </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="toast-container" id="toastContainer" aria-live="polite"></div>
+<script src="js/app.js"></script>
+<script>
+function populateImportSelect() {
+  apiRequest('/api/tournaments/all').then(function(list) {
+    var select = document.getElementById('importTournamentSelect');
+    select.innerHTML = '<option value="">-- Choose Tournament --</option>';
+    var selectedId = localStorage.getItem('selectedTournamentId');
+    var foundSelected = false;
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      var option = document.createElement('option');
+      option.value = t.id;
+      option.textContent = t.id + ' - ' + t.name + ' (' + t.format + ')';
+      if (selectedId && String(t.id) === String(selectedId)) {
+        option.selected = true;
+        foundSelected = true;
+      }
+      select.appendChild(option);
+    }
+    // After populating, always refresh player list (for pre-selected or default)
+    if (foundSelected || select.options.length === 2) {
+      // If a tournament is pre-selected or only one tournament exists, trigger list
+      select.dispatchEvent(new Event('change'));
+    }
+    // Optionally clear after use
+    // localStorage.removeItem('selectedTournamentId');
+  }).catch(function(error) {
+    showToast(error.message || 'Failed to load tournaments', 'error');
+  });
+}
+
+function processPlayers() {
+  var tournamentId = document.getElementById('importTournamentSelect').value;
+  var rawData = document.getElementById('playerData').value;
+
+  if (!tournamentId) {
+    showToast('Select a tournament first.', 'warning');
+    return;
+  }
+
+  if (!rawData.trim()) {
+    showToast('Player data is required.', 'warning');
+    return;
+  }
+
+  var lines = rawData.split(/\r?\n/);
+  var players = [];
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].trim();
+    if (!line) continue;
+    var parts = line.split(',');
+    if (parts.length < 2) continue;
+
+    var name = parts[0].trim();
+    var rating = parseInt(parts[1].trim(), 10);
+    if (!name || isNaN(rating)) continue;
+
+    players.push({
+      tournamentId: parseInt(tournamentId, 10),
+      name: name,
+      rating: rating
+    });
+  }
+
+  if (players.length === 0) {
+    showToast('No valid players found. Use Name, Rating format.', 'error');
+    return;
+  }
+
+  apiRequest('/api/players/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(players)
+  }).then(function(resp) {
+    if (resp.error) {
+      showToast(resp.error, 'error');
+      return;
+    }
+
+    showToast(players.length + ' players imported.', 'success');
+    document.getElementById('playerData').value = '';
+  }).catch(function(error) {
+    showToast(error.message || 'Import failed', 'error');
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  populateImportSelect();
+  var csvInput = document.getElementById('csvInput');
+  var importBtn = document.getElementById('importCsvBtn');
+  var csvPreview = document.getElementById('csvPreview');
+  var parsedCsvPlayers = [];
+
+  function checkPlayerImportLocked(tournamentId) {
+    // Returns a Promise<'none'|'import'>
+    return fetch('/api/players/import-locked?tournamentId=' + encodeURIComponent(tournamentId))
+      .then(function(response) { return response.json(); })
+      .then(function(data) {
+        if (data && data.locked === true) {
+          return 'import';
+        }
+        return 'none';
+      })
+      .catch(function() { return 'none'; });
+  }
+
+  function setImportUIEnabled(lockType) {
+    var csvInput = document.getElementById('csvInput');
+    var importBtn = document.getElementById('importCsvBtn');
+    var importTextBtn = document.getElementById('importTextBtn');
+    var playerData = document.getElementById('playerData');
+    var importLockedMsg = document.getElementById('importLockedMsg');
+    var importLockedMsgText = document.getElementById('importLockedMsgText');
+    if (lockType === 'import') {
+      if (csvInput) csvInput.disabled = true;
+      if (importBtn) importBtn.disabled = true;
+      if (importTextBtn) importTextBtn.disabled = true;
+      if (playerData) playerData.disabled = true;
+      if (importLockedMsg) importLockedMsg.style.display = '';
+      if (importLockedMsgText) importLockedMsgText.textContent = 'Failed to import player as tournament has already started.';
+    } else {
+      if (csvInput) csvInput.disabled = false;
+      if (importBtn) importBtn.disabled = false;
+      if (importTextBtn) importTextBtn.disabled = false;
+      if (playerData) playerData.disabled = false;
+      if (importLockedMsg) importLockedMsg.style.display = 'none';
+    }
+  }
+
+  function refreshPlayersList() {
+    var tournamentId = document.getElementById('importTournamentSelect').value;
+    var listDiv = document.getElementById('importedPlayersList');
+    var pairingBtnDiv = document.getElementById('generatePairingsBtnDiv');
+    var pairingBtn = document.getElementById('generatePairingsBtn');
+    console.log('[DEBUG] refreshPlayersList called with tournamentId:', tournamentId);
+    if (!tournamentId) {
+      listDiv.innerHTML = '<div class="empty-state"><div class="empty-icon">P</div><p>Select a tournament to view players.</p></div>';
+      setImportUIEnabled('none');
+      if (pairingBtnDiv) pairingBtnDiv.style.display = 'none';
+      return;
+    }
+    checkPlayerImportLocked(tournamentId).then(function(lockType) {
+      setImportUIEnabled(lockType);
+      apiRequest('/api/players/by-tournament?tournamentId=' + encodeURIComponent(tournamentId))
+        .then(function(players) {
+          console.log('[DEBUG] API /api/players/by-tournament response:', players);
+          if (!Array.isArray(players) || players.length === 0) {
+            listDiv.innerHTML = '<div class="empty-state"><div class="empty-icon">P</div><p>No players imported yet.</p></div>';
+            if (pairingBtnDiv) pairingBtnDiv.style.display = 'none';
+            return;
+          }
+          var html = '';
+          // Add heading row styled with green theme
+          html += '<div class="player-card-header-row">';
+          html += '<div class="player-col-slno">Sl. No.</div>';
+          html += '<div class="player-col-name">Name</div>';
+          html += '<div class="player-col-rating">Rating</div>';
+          html += '<div class="player-col-delete">Delete</div>';
+          html += '</div>';
+          for (var i = 0; i < players.length; i++) {
+            var p = players[i];
+            var deleteBtn = '';
+            if (lockType === 'none') {
+              deleteBtn = '<button class="btn btn-sm btn-danger" onclick="deletePlayer(' + p.id + ',' + tournamentId + ')">Delete</button>';
+            } else {
+              deleteBtn = '<button class="btn btn-sm btn-danger" disabled>Delete</button>';
+            }
+            html += '<div class="pairing-card player-card-row">';
+            html += '<div class="player-col-slno">' + (i+1) + '</div>';
+            html += '<div class="player-col-name">' + escapeHtml(p.name) + '</div>';
+            html += '<div class="player-col-rating">' + p.rating + '</div>';
+            html += '<div class="player-col-delete">' + deleteBtn + '</div>';
+            html += '</div>';
+          }
+          listDiv.innerHTML = html;
+          if (pairingBtnDiv && pairingBtn) {
+            // Only show if players exist
+            pairingBtnDiv.style.display = '';
+            // Disable if import is locked
+            pairingBtn.disabled = (lockType !== 'none');
+          }
+
+        })
+        .catch(function(err) {
+          console.error('[DEBUG] API /api/players/by-tournament error:', err);
+          listDiv.innerHTML = '<div class="empty-state"><div class="empty-icon">P</div><p>Failed to load players.</p></div>';
+          if (pairingBtnDiv) pairingBtnDiv.style.display = 'none';
+        });
+    });
+  }
+
+  window.redirectToPairings = function() {
+    var tid = document.getElementById('importTournamentSelect').value;
+    if (tid) {
+      localStorage.setItem('selectedTournamentId', tid);
+    }
+    window.location.href = 'pairings.html';
+  };
+
+  window.deletePlayer = function(playerId, tournamentId) {
+    if (!confirm('Remove this player?')) return;
+    apiRequest('/api/players/delete?playerId=' + encodeURIComponent(playerId), { method: 'DELETE' })
+      .then(function(resp) {
+        console.log('[DEBUG] Delete player API response:', resp);
+        if (resp.error) {
+          showToast(resp.error, 'error');
+          return;
+        }
+        showToast('Player removed.', 'success');
+        refreshPlayersList();
+      })
+      .catch(function(err) {
+        console.error('[DEBUG] Delete player API error:', err);
+        showToast('Failed to remove player', 'error');
+      });
+  };
+
+  document.getElementById('importTournamentSelect').addEventListener('change', function(e) {
+    var tid = document.getElementById('importTournamentSelect').value;
+    console.log('[DEBUG] Tournament select changed:', tid);
+    refreshPlayersList();
+  });
+
+  csvInput.addEventListener('change', function() {
+    csvPreview.innerHTML = '';
+    importBtn.style.display = 'none';
+    parsedCsvPlayers = [];
+    var file = csvInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var text = e.target.result;
+      var lines = text.split(/\r?\n/);
+      var html = '<table class="csv-table"><thead><tr><th>#</th><th>Name</th><th>Rating</th></tr></thead><tbody>';
+      var valid = 0;
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line) continue;
+        var parts = line.split(',');
+        if (parts.length < 2) continue;
+        var name = parts[0].trim();
+        var rating = parseInt(parts[1].trim(), 10);
+        if (!name || isNaN(rating)) continue;
+        parsedCsvPlayers.push({ name: name, rating: rating });
+        html += '<tr><td>' + (valid + 1) + '</td><td>' + escapeHtml(name) + '</td><td>' + rating + '</td></tr>';
+        valid++;
+      }
+      html += '</tbody></table>';
+      csvPreview.innerHTML = html + '<div style="margin-top:8px;">' + valid + ' valid players found.</div>';
+      if (valid > 0) importBtn.style.display = '';
+    };
+    reader.readAsText(file);
+  });
+
+  importBtn.addEventListener('click', function() {
+    var tournamentId = document.getElementById('importTournamentSelect').value;
+    if (!tournamentId) {
+      showToast('Select a tournament first.', 'warning');
+      return;
+    }
+    if (parsedCsvPlayers.length === 0) {
+      showToast('No valid players in CSV.', 'error');
+      return;
+    }
+    var players = parsedCsvPlayers.map(function(p) {
+      return { tournamentId: parseInt(tournamentId, 10), name: p.name, rating: p.rating };
+    });
+    apiRequest('/api/players/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(players)
+    }).then(function(resp) {
+      if (resp.error) {
+        showToast(resp.error, 'error');
+        return;
+      }
+      showToast(players.length + ' players imported from CSV.', 'success');
+      csvInput.value = '';
+      csvPreview.innerHTML = '';
+      importBtn.style.display = 'none';
+      parsedCsvPlayers = [];
+      refreshPlayersList();
+    }).catch(function(error) {
+      showToast(error.message || 'CSV import failed', 'error');
+    });
+  });
+
+  // Patch processPlayers to refresh list after import
+  var origProcessPlayers = window.processPlayers;
+  window.processPlayers = function() {
+    var tournamentId = document.getElementById('importTournamentSelect').value;
+    var rawData = document.getElementById('playerData').value;
+    if (!tournamentId || !rawData.trim()) {
+      origProcessPlayers();
+      return;
+    }
+    var lines = rawData.split(/\r?\n/);
+    var players = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      var parts = line.split(',');
+      if (parts.length < 2) continue;
+      var name = parts[0].trim();
+      var rating = parseInt(parts[1].trim(), 10);
+      if (!name || isNaN(rating)) continue;
+      players.push({ tournamentId: parseInt(tournamentId, 10), name: name, rating: rating });
+    }
+    if (players.length === 0) {
+      origProcessPlayers();
+      return;
+    }
+    apiRequest('/api/players/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(players)
+    }).then(function(resp) {
+      if (resp.error) {
+        showToast(resp.error, 'error');
+        return;
+      }
+      showToast(players.length + ' players imported.', 'success');
+      document.getElementById('playerData').value = '';
+      refreshPlayersList();
+    }).catch(function(error) {
+      showToast(error.message || 'Import failed', 'error');
+    });
+  };
+
+  // Initial load
+  refreshPlayersList();
+});
+</script>
+</body>
+</html>

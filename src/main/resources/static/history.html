@@ -1,0 +1,228 @@
+<script>
+  // Only redirect to landing page on true browser refresh, not sidebar navigation
+  (function() {
+    var isReload = false;
+    if (window.performance) {
+      var navEntries = window.performance.getEntriesByType && window.performance.getEntriesByType('navigation');
+      if (navEntries && navEntries.length > 0) {
+        isReload = navEntries[0].type === 'reload';
+      } else if (window.performance.navigation) {
+        isReload = window.performance.navigation.type === 1;
+      }
+    }
+    // Fallback: use sessionStorage to detect reload
+    if (!isReload) {
+      if (sessionStorage.getItem('justReloaded')) {
+        isReload = true;
+        sessionStorage.removeItem('justReloaded');
+      }
+    }
+    // Only set flag if user is refreshing (not navigating via link)
+    window.addEventListener('beforeunload', function(e) {
+      // If referrer is empty or same as current page, treat as reload
+      if (!document.referrer || document.referrer === window.location.href) {
+        sessionStorage.setItem('justReloaded', '1');
+      } else {
+        sessionStorage.removeItem('justReloaded');
+      }
+    });
+    if (isReload) {
+      window.location.replace('index.html');
+    }
+  })();
+</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chess Tournament Pairing System - History and Export</title>
+<link rel="stylesheet" href="css/variables.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app-container">
+  <nav class="sidebar" id="sidebar" role="navigation" aria-label="Main navigation">
+    <div class="sidebar-brand">
+      <a href="index.html" class="brand-logo-link" aria-label="Go to Dashboard">
+        <img class="brand-logo" src="/ChecknMate-logo.png" alt="Check&Mate Logo">
+      </a>
+      <a href="index.html" class="brand-text brand-text-link" aria-label="Go to Dashboard">
+        <h1>Check<span style="color: rgb(3, 98, 3);">&amp;</span>Mate</h1>
+        <small>Organize Chess Effortlessly</small>
+      </a>
+    </div>
+    <div class="nav-section">Main</div>
+    <a class="nav-item" href="index.html"><span class="nav-icon">🏠</span> Dashboard</a>
+    <a class="nav-item" href="players.html"><span class="nav-icon">📥</span> Import Players</a>
+    <div class="nav-section">Tournament</div>
+    <a class="nav-item" href="pairings.html"><span class="nav-icon">🔀</span> Pairings</a>
+    <a class="nav-item" href="results.html"><span class="nav-icon">📝</span> Results Entry</a>
+    <a class="nav-item" href="standings.html"><span class="nav-icon">🏆</span> Standings</a>
+    <a class="nav-item active" href="history.html"><span class="nav-icon">📋</span> History and Export</a>
+    <div class="sidebar-footer"><p>&copy; 2026 Check&amp;Mate. All rights reserved.</p></div>
+  </nav>
+
+  <main class="main-content" role="main">
+    <button class="mobile-toggle" id="mobileToggle" aria-label="Toggle menu">=</button>
+    <div class="page-header"><div><h2>History and Export</h2><p>View all rounds and export as CSV</p></div></div>
+    <div class="page-body">
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-body">
+          <div class="grid grid-2">
+            <div class="form-group">
+              <label class="form-label">Tournament</label>
+              <select class="form-control" id="historyTournamentSelect"><option value="">-- Choose --</option></select>
+            </div>
+            <div class="form-group" style="display:flex;align-items:flex-end;gap:8px;">
+              <button class="btn btn-primary" onclick="loadHistory()">Load History</button>
+              <button class="btn btn-success" onclick="exportToCSV()">Export CSV</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="historyDisplay"><div class="empty-state"><div class="empty-icon">H</div><h4>Select a tournament</h4><p>Choose a tournament to view match history.</p></div></div>
+    </div>
+  </main>
+</div>
+<div class="toast-container" id="toastContainer" aria-live="polite"></div>
+<script src="js/app.js"></script>
+<script>
+var allMatches = [];
+
+function populateHistorySelect() {
+  apiRequest('/api/tournaments/all').then(function(list) {
+    var sel = document.getElementById('historyTournamentSelect');
+    sel.innerHTML = '<option value="">-- Choose --</option>';
+    for (var i = 0; i < list.length; i++) {
+      var t = list[i];
+      var opt = document.createElement('option');
+      opt.value = t.id;
+      opt.textContent = t.id + ' - ' + t.name + ' (' + t.format + ')';
+      sel.appendChild(opt);
+    }
+  }).catch(function(error) {
+    showToast(error.message || 'Failed to load tournaments', 'error');
+  });
+}
+
+function loadHistory() {
+  var tournamentId = document.getElementById('historyTournamentSelect').value;
+  if (!tournamentId) {
+    showToast('Select a tournament first', 'warning');
+    return;
+  }
+
+  apiRequest('/api/history/all?tournamentId=' + encodeURIComponent(tournamentId))
+    .then(function(matches) {
+      allMatches = matches || [];
+      renderHistory(allMatches);
+    })
+    .catch(function(error) {
+      showToast(error.message || 'Failed to load history', 'error');
+    });
+}
+
+function renderHistory(matches) {
+  var container = document.getElementById('historyDisplay');
+  if (!matches || matches.length === 0) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">H</div><h4>No history available</h4><p>No rounds found for this tournament.</p></div>';
+    return;
+  }
+
+  var rounds = {};
+  for (var i = 0; i < matches.length; i++) {
+    var key = matches[i].roundNum;
+    if (!rounds[key]) rounds[key] = [];
+    rounds[key].push(matches[i]);
+  }
+
+  var roundNumbers = Object.keys(rounds).map(function(v) { return parseInt(v, 10); }).sort(function(a, b) { return a - b; });
+  var html = '';
+
+  for (var r = 0; r < roundNumbers.length; r++) {
+    var roundNum = roundNumbers[r];
+    var roundMatches = rounds[roundNum];
+    html += '<div class="card" style="margin-bottom:16px;">' +
+      '<div class="card-header"><h3>Round ' + roundNum + '</h3></div>' +
+      '<div class="card-body"><div class="table-wrapper"><table>' +
+      '<thead><tr><th>Board</th><th>White</th><th>Result</th><th>Black</th></tr></thead><tbody>';
+
+    for (var j = 0; j < roundMatches.length; j++) {
+      var m = roundMatches[j];
+      html += '<tr>' +
+        '<td>' + m.boardNum + '</td>' +
+        '<td>' + escapeHtml(m.whiteName) + ' (' + m.whiteRating + ')</td>' +
+        '<td>' + (m.isBye ? 'BYE' : escapeHtml(m.result || 'Pending')) + '</td>' +
+        '<td>' + (m.isBye ? 'BYE' : (escapeHtml(m.blackName) + ' (' + m.blackRating + ')')) + '</td>' +
+        '</tr>';
+    }
+
+    html += '</tbody></table></div></div></div>';
+  }
+
+  container.innerHTML = html;
+}
+
+function exportToCSV() {
+  if (!allMatches || allMatches.length === 0) {
+    showToast('Load history before export.', 'warning');
+    return;
+  }
+
+  var csv = 'Round,Board,White Player,White Rating,Result,Black Player,Black Rating\n';
+  for (var i = 0; i < allMatches.length; i++) {
+    var m = allMatches[i];
+    var blackName = m.isBye ? 'BYE' : m.blackName;
+    var blackRating = m.isBye ? 0 : m.blackRating;
+    csv += [
+      m.roundNum,
+      m.boardNum,
+      '"' + String(m.whiteName || '').replace(/"/g, '""') + '"',
+      m.whiteRating,
+      m.result || '',
+      '"' + String(blackName || '').replace(/"/g, '""') + '"',
+      blackRating
+    ].join(',') + '\n';
+  }
+
+  var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  var link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'tournament_history.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  showToast('CSV exported successfully.', 'success');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  populateHistorySelect();
+  // Auto-select tournament if passed in URL or localStorage
+  var urlParams = new URLSearchParams(window.location.search);
+  var urlTid = urlParams.get('tournamentId');
+  var storedTid = urlTid || localStorage.getItem('selectedTournamentId');
+  if (storedTid) {
+    var trySelect = function() {
+      var sel = document.getElementById('historyTournamentSelect');
+      if (!sel || sel.options.length <= 1) {
+        setTimeout(trySelect, 50);
+        return;
+      }
+      for (var i = 0; i < sel.options.length; i++) {
+        if (String(sel.options[i].value) === String(storedTid)) {
+          sel.selectedIndex = i;
+          sel.dispatchEvent(new Event('change'));
+          break;
+        }
+      }
+      // Optionally clear after use
+      // localStorage.removeItem('selectedTournamentId');
+    };
+    trySelect();
+  }
+});
+</script>
+</body>
+</html>
