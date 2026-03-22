@@ -8,6 +8,14 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 
 public class TournamentRepository {
+    public void updateStatus(int tournamentId, String status) throws Exception {
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement("UPDATE tournaments SET status = ? WHERE id = ?")) {
+            pstmt.setString(1, status);
+            pstmt.setInt(2, tournamentId);
+            pstmt.executeUpdate();
+        }
+    }
 
     public TournamentRepository() {
         DatabaseUtil.initializeSchema();

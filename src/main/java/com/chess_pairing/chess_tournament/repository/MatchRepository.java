@@ -8,22 +8,47 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 
 public class MatchRepository {
+        public int getTournamentIdByMatchId(int matchId) throws Exception {
+            int tournamentId = -1;
+            try (Connection conn = DatabaseUtil.getConnection();
+                 PreparedStatement pstmt = conn.prepareStatement("SELECT tournament_id FROM matches WHERE id = ?")) {
+                pstmt.setInt(1, matchId);
+                try (ResultSet rs = pstmt.executeQuery()) {
+                    if (rs.next()) {
+                        tournamentId = rs.getInt("tournament_id");
+                    }
+                }
+            }
+            return tournamentId;
+        }
     public MatchRepository() {
         DatabaseUtil.initializeSchema();
     }
 
     public void save(Match match) throws Exception {
-        try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement("INSERT INTO matches (tournament_id, round_num, board_num, white_player_id, black_player_id, result) VALUES (?, ?, ?, ?, ?, ?)")) {
-
-            pstmt.setInt(1, match.getTournamentId());
-            pstmt.setInt(2, match.getRoundNum());
-            pstmt.setInt(3, match.getBoardNum());
-            pstmt.setObject(4, match.getWhitePlayerId());
-            pstmt.setObject(5, match.getBlackPlayerId());
-            pstmt.setString(6, match.getResult());
-
-            pstmt.executeUpdate();
+        try (Connection conn = DatabaseUtil.getConnection()) {
+            // Check for duplicate match (same tournament, round, board)
+            try (PreparedStatement checkStmt = conn.prepareStatement(
+                "SELECT COUNT(*) FROM matches WHERE tournament_id = ? AND round_num = ? AND board_num = ?")) {
+                checkStmt.setInt(1, match.getTournamentId());
+                checkStmt.setInt(2, match.getRoundNum());
+                checkStmt.setInt(3, match.getBoardNum());
+                try (ResultSet rs = checkStmt.executeQuery()) {
+                    if (rs.next() && rs.getInt(1) > 0) {
+                        // Duplicate found, do not insert
+                        return;
+                    }
+                }
+            }
+            try (PreparedStatement pstmt = conn.prepareStatement("INSERT INTO matches (tournament_id, round_num, board_num, white_player_id, black_player_id, result) VALUES (?, ?, ?, ?, ?, ?)")) {
+                pstmt.setInt(1, match.getTournamentId());
+                pstmt.setInt(2, match.getRoundNum());
+                pstmt.setInt(3, match.getBoardNum());
+                pstmt.setObject(4, match.getWhitePlayerId());
+                pstmt.setObject(5, match.getBlackPlayerId());
+                pstmt.setString(6, match.getResult());
+                pstmt.executeUpdate();
+            }
         }
     }
 

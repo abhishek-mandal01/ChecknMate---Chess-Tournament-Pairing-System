@@ -23,3 +23,6 @@ build/
 # OS Files ###
 .DS_Store
 Thumbs.db
+
+# Ignore sensitive Spring Boot config
+src/main/resources/application.properties

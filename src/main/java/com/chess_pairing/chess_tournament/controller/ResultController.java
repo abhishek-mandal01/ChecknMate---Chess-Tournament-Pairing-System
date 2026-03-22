@@ -1,5 +1,8 @@
 package com.chess_pairing.chess_tournament.controller;
 
+import com.chess_pairing.chess_tournament.repository.TournamentRepository;
+import com.chess_pairing.chess_tournament.models.Tournament;
+
 import com.chess_pairing.chess_tournament.models.MatchDTO;
 import com.chess_pairing.chess_tournament.models.ResultRequest;
 import com.chess_pairing.chess_tournament.repository.MatchRepository;
@@ -24,19 +27,22 @@ public class ResultController {
     @PostMapping("/submit")
     public String submitResults(@RequestBody ArrayList<ResultRequest> results) {
         try {
-            MatchRepository repo = new MatchRepository();
+            MatchRepository matchRepo = new MatchRepository();
+            TournamentRepository tournamentRepo = new TournamentRepository();
 
             // First pass: validate immutability so we avoid partial updates.
             for (int i = 0; i < results.size(); i++) {
                 ResultRequest req = results.get(i);
 
-                String existing = repo.getResultByMatchId(req.getMatchId());
+                String existing = matchRepo.getResultByMatchId(req.getMatchId());
                 if (existing == null) {
                     return "{\"error\": \"Match not found: " + req.getMatchId() + ".\"}";
                 }
 
                 String trimmedExisting = existing.trim();
-                if (!trimmedExisting.isEmpty() && !trimmedExisting.equalsIgnoreCase("Pending")) {
+                if (!trimmedExisting.isEmpty() &&
+                    !trimmedExisting.equalsIgnoreCase("Pending") &&
+                    !trimmedExisting.equalsIgnoreCase("BYE")) {
                     if (!trimmedExisting.equals(req.getResult())) {
                         return "{\"error\": \"Results are locked for match " + req.getMatchId() + ".\"}";
                     }
@@ -46,8 +52,34 @@ public class ResultController {
             // Second pass: apply updates when validations are successful.
             for (int i = 0; i < results.size(); i++) {
                 ResultRequest req = results.get(i);
-                repo.updateResult(req.getMatchId(), req.getResult());
+                matchRepo.updateResult(req.getMatchId(), req.getResult());
             }
+
+            // After saving results, check if all rounds are completed for the tournament
+            if (!results.isEmpty()) {
+                int matchId = results.get(0).getMatchId();
+                int tournamentId = matchRepo.getTournamentIdByMatchId(matchId);
+                Tournament t = tournamentRepo.findById(tournamentId);
+                if (t != null) {
+                    int totalRounds = t.getTotalRounds();
+                    boolean allRoundsCompleted = true;
+                    for (int round = 1; round <= totalRounds; round++) {
+                        var matches = matchRepo.getMatchesWithNames(tournamentId, round);
+                        for (var m : matches) {
+                            String r = m.getResult();
+                            if (r == null || r.trim().isEmpty() || r.trim().equalsIgnoreCase("Pending")) {
+                                allRoundsCompleted = false;
+                                break;
+                            }
+                        }
+                        if (!allRoundsCompleted) break;
+                    }
+                    if (allRoundsCompleted) {
+                        tournamentRepo.updateStatus(tournamentId, "Completed");
+                    }
+                }
+            }
+
             return "{\"message\": \"Results saved successfully!\"}";
         } catch (Exception e) {
             System.out.println("Error saving results: " + e.getMessage());

@@ -559,7 +559,13 @@ tbody tr:last-child td { border-bottom: none; }
 .empty-state h4 { color: var(--text-secondary); margin-bottom: 8px; font-size: 18px; }
 .empty-state p { font-size: 14px; max-width: 400px; margin: 0 auto 20px; }
 
-.result-btn-group { display: flex; gap: 4px; justify-content: center; }
+.result-btn-group {
+  display: flex;
+  gap: 4px;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
 
 .result-btn {
   padding: 6px 12px;
@@ -572,6 +578,7 @@ tbody tr:last-child td { border-bottom: none; }
   font-weight: 600;
   transition: all var(--transition);
   font-family: var(--font-main);
+  vertical-align: middle;
 }
 
 .result-btn:hover { border-color: var(--dark-square); color: var(--text-primary); }

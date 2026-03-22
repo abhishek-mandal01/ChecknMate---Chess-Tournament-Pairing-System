@@ -152,7 +152,7 @@ function renderResultTable(roundNum, matches) {
   }
 
   var html = '<div class="card"><div class="card-header"><h3>Round ' + roundNum + '</h3></div><div class="card-body">';
-  html += '<div class="table-wrapper"><table><thead><tr><th>Board</th><th>White</th><th>Result</th><th>Black</th></tr></thead><tbody>';
+  html += '<div class="table-wrapper"><table><thead><tr><th>Board</th><th>White</th><th style="text-align:center;">Result</th><th>Black</th></tr></thead><tbody>';
 
   for (var i = 0; i < matches.length; i++) {
     var m = matches[i];
@@ -175,9 +175,11 @@ function renderResultTable(roundNum, matches) {
   }
 
   html += '</tbody></table></div>';
-  html += '<div style="display:flex;justify-content:flex-end;margin-top:20px;">';
+  html += '<div style="display:flex;justify-content:flex-end;gap:12px;margin-top:20px;">';
   html += '<button class="btn btn-success" onclick="submitResults()">Submit and Lock</button>';
+  html += '<button class="btn btn-secondary" id="generateNextPairingBtn" onclick="generateNextPairing()">Generate Pairings for Next Round</button>';
   html += '</div></div></div>';
+  setTimeout(updateGenerateNextPairingBtn, 100);
   container.innerHTML = html;
 }
 
@@ -235,6 +237,69 @@ function submitResults() {
     showToast(error.message || 'Failed to submit results', 'error');
   });
 }
+
+// Generate Pairings for Next Round logic
+function generateNextPairing() {
+  var tid = document.getElementById('resultTournamentSelect').value;
+  var roundInput = document.getElementById('resultRoundSelect');
+  var currentRound = parseInt(roundInput.value, 10);
+  if (!tid || isNaN(currentRound)) {
+    showToast('Select tournament and round first', 'warning');
+    return;
+  }
+  // Fetch tournament info to get totalRounds
+  apiRequest('/api/tournaments/all').then(function(list) {
+    var t = list.find(function(x) { return String(x.id) === String(tid); });
+    if (!t) {
+      showToast('Tournament not found', 'error');
+      return;
+    }
+    var nextRound = currentRound + 1;
+    if (nextRound > t.totalRounds) {
+      showToast('All pairings already generated', 'info');
+      return;
+    }
+    // Generate pairings for next round
+    apiRequest('/api/pairings/generate?tournamentId=' + encodeURIComponent(tid) + '&roundNum=' + encodeURIComponent(nextRound), { method: 'POST' })
+      .then(function(resp) {
+        if (resp.error) {
+          showToast(resp.error, 'error');
+          return;
+        }
+        // Store tournament and round for redirect
+        localStorage.setItem('selectedTournamentId', tid);
+        localStorage.setItem('selectedRoundNum', nextRound);
+        window.location.href = 'pairings.html';
+      })
+      .catch(function(error) {
+        showToast(error.message || 'Failed to generate pairings', 'error');
+      });
+  });
+}
+
+// Enable/disable Generate Next Pairing button based on pairing status
+function updateGenerateNextPairingBtn() {
+  var tid = document.getElementById('resultTournamentSelect').value;
+  var roundInput = document.getElementById('resultRoundSelect');
+  if (!tid || !roundInput) return;
+  apiRequest('/api/tournaments/all').then(function(list) {
+    var t = list.find(function(x) { return String(x.id) === String(tid); });
+    if (!t) return;
+    var nextRound = parseInt(roundInput.value, 10) + 1;
+    var btn = document.getElementById('generateNextPairingBtn');
+    if (!btn) return;
+    if (nextRound > t.totalRounds) {
+      btn.disabled = true;
+      btn.title = 'All pairings generated';
+    } else {
+      btn.disabled = false;
+      btn.title = '';
+    }
+  });
+}
+
+document.getElementById('resultTournamentSelect').addEventListener('change', updateGenerateNextPairingBtn);
+  document.getElementById('resultRoundSelect').addEventListener('input', updateGenerateNextPairingBtn);
 
 document.addEventListener('DOMContentLoaded', function() {
   populateResultSelect();
