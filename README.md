@@ -1,7 +1,7 @@
 # Check&Mate - Chess Tournament Pairing System
 
 This is a web application for managing chess tournaments from start to finish. You can create tournaments, add players, generate pairings, enter results, and view standings, all in one place!
-## Live Link: https://checknmate-chess-tournament-pairing.onrender.com
+### Live Link: https://checknmate-chess-tournament-pairing.onrender.com
 
 ## What is this website for?
 
