@@ -62,7 +62,7 @@ src/main/resources/static/
 ## Database
 
 - Tables are auto-created in PostgreSQL when the app runs.
-- The production database is hosted on **Render** (https://render.com).
+- The production database is hosted on **Neon** (https://neon.com).
 
 ## Deployment
 
