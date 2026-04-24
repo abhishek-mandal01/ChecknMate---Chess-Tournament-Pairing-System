@@ -226,12 +226,6 @@ h1, h2, h3, h4, h5 {
   flex-direction: column;
   max-width: calc(100vw - 260px);
   box-sizing: border-box;
-@media (max-width: 1024px) {
-  .main-content {
-    margin-left: 0;
-    max-width: 100vw;
-  }
-}
 }
 
 .page-header {
@@ -690,11 +684,236 @@ tbody tr:last-child td { border-bottom: none; }
 }
 
 @media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    max-width: 100vw;
+  }
+
   .sidebar { transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); }
   .main-content { margin-left: 0; }
   .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
-  .page-body { padding: 16px; }
-  .page-header { padding: 16px; }
-  .mobile-toggle { display: flex !important; }
+  body {
+    overflow-x: hidden;
+  }
+
+  .sidebar {
+    width: 66.6667vw;
+    transform: translateX(-100%);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidebar.open { transform: translateX(0); }
+
+  .main-content {
+    margin-left: 0;
+    max-width: 100vw;
+  }
+
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+
+  .page-header {
+    padding: 16px;
+    padding-top: 62px;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .page-header h2 {
+    font-size: 20px;
+  }
+
+  .page-body {
+    padding: 14px;
+  }
+
+  .card-body,
+  .card-header,
+  .card-footer {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .btn {
+    min-height: 42px;
+  }
+
+  .form-control {
+    min-height: 42px;
+  }
+
+  .table-wrapper table {
+    min-width: 620px;
+  }
+
+  thead th,
+  tbody td {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .pairing-card {
+    align-items: flex-start;
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .pairing-board {
+    width: auto;
+    min-width: 40px;
+    text-align: left;
+  }
+
+  .pairing-players {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .pairing-player,
+  .pairing-vs {
+    text-align: left;
+  }
+
+  .result-btn-group {
+    flex-wrap: wrap;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  .result-btn {
+    flex: 0 0 auto;
+    min-width: 76px;
+    min-height: 38px;
+    padding: 8px 10px;
+    line-height: 1.2;
+    white-space: nowrap;
+    color: var(--text-primary);
+    background: var(--bg-card-hover);
+    border-color: var(--border-light);
+    -webkit-text-fill-color: currentColor;
+    font-family: var(--font-main);
+  }
+
+  .result-btn.selected {
+    color: #fff;
+    -webkit-text-fill-color: #fff;
+  }
+
+  .enter-results-btn-row {
+    margin-right: 0;
+    margin-bottom: 18px;
+  }
+
+  .toast-container {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+  }
+
+  .toast {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .modal {
+    width: calc(100% - 20px);
+    max-height: 88vh;
+  }
+
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+
+  .modal-footer {
+    flex-direction: column;
+  }
+
+  .modal-footer .btn {
+    width: 100%;
+  }
+
+  .player-card-header-row,
+  .player-card-row {
+    padding: 10px 12px;
+  }
+
+  .player-col-slno {
+    display: none;
+  }
+
+  .player-col-name {
+    min-width: 0;
+    margin-right: 8px;
+  }
+
+  .player-col-rating {
+    width: 70px;
+    min-width: 70px;
+    margin-right: 12px;
+  }
+
+  .player-col-delete {
+    width: 82px;
+    min-width: 82px;
+  }
+
+  .player-col-delete .btn {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .mobile-toggle {
+    display: flex !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar-brand {
+    padding: 12px;
+    gap: 10px;
+    height: 86px;
+  }
+
+  .sidebar-brand .brand-logo {
+    width: 62px;
+    height: 62px;
+    min-width: 62px;
+    min-height: 62px;
+  }
+
+  .sidebar-brand h1 {
+    font-size: 16px;
+  }
+
+  .sidebar-brand small {
+    font-size: 11px;
+  }
+
+  .page-header {
+    padding-top: 58px;
+  }
+
+  .stat-card {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .stat-info h4 {
+    font-size: 22px;
+  }
+
+  .empty-state {
+    padding: 30px 14px;
+  }
 }

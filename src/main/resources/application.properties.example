@@ -1,0 +1,10 @@
+spring.application.name=chess-tournament
+server.port=8081
+
+# PostgreSQL Database Connection
+# Copy this file to application.properties for local use, or set env vars directly.
+# For production/deployment, prefer environment variables over committed secrets.
+spring.datasource.url=${DB_URL:jdbc:postgresql://localhost:5432/chess_tournament}
+spring.datasource.username=${DB_USERNAME:postgres}
+spring.datasource.password=${DB_PASSWORD:postgres}
+spring.datasource.driver-class-name=org.postgresql.Driver

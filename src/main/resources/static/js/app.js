@@ -86,6 +86,35 @@ function setupMobileSidebar() {
     toggle.addEventListener("click", function () {
         sidebar.classList.toggle("open");
     });
+
+    // Close menu after selecting a navigation item on small screens.
+    var navLinks = sidebar.querySelectorAll(".nav-item");
+    for (var i = 0; i < navLinks.length; i++) {
+        navLinks[i].addEventListener("click", function () {
+            if (window.innerWidth <= 768) {
+                sidebar.classList.remove("open");
+            }
+        });
+    }
+
+    // Close menu if user taps outside the sidebar.
+    document.addEventListener("click", function (event) {
+        if (window.innerWidth > 768) return;
+        if (!sidebar.classList.contains("open")) return;
+
+        var clickedInsideSidebar = sidebar.contains(event.target);
+        var clickedToggle = toggle.contains(event.target);
+        if (!clickedInsideSidebar && !clickedToggle) {
+            sidebar.classList.remove("open");
+        }
+    });
+
+    // Keep state consistent when rotating or resizing device.
+    window.addEventListener("resize", function () {
+        if (window.innerWidth > 768) {
+            sidebar.classList.remove("open");
+        }
+    });
 }
 
 

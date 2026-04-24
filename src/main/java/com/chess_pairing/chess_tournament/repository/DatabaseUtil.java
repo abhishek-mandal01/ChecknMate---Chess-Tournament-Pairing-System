@@ -40,9 +40,9 @@ public class DatabaseUtil {
         String propPassword = resolvePropertyValue(properties.getProperty("spring.datasource.password"));
         String propDriver = resolvePropertyValue(properties.getProperty("spring.datasource.driver-class-name"));
 
-        String resolvedUrl = pickFirst(envUrl, propUrl, DEFAULT_URL);
-        String resolvedUser = pickFirst(envUser, propUser, DEFAULT_USER);
-        String resolvedPassword = pickFirst(envPassword, propPassword, DEFAULT_PASSWORD);
+        String resolvedUrl = pickFirst(propUrl, envUrl, DEFAULT_URL);
+        String resolvedUser = pickFirst(propUser, envUser, DEFAULT_USER);
+        String resolvedPassword = pickFirst(propPassword, envPassword, DEFAULT_PASSWORD);
 
         ConnectionConfig config = normalizeConnectionConfig(resolvedUrl, resolvedUser, resolvedPassword);
         dbUrl = config.url;
